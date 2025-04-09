@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Todo App - ログイン & 登録</title>
+</head>
+<body>
+  <h1>📝 Todo App</h1>
+
+  <!-- 認証フォーム -->
+  <div id="auth-section">
+    <h2>ログイン</h2>
+    <form id="login-form">
+      <input type="text" id="login-username" placeholder="ユーザー名" required>
+      <input type="password" id="login-password" placeholder="パスワード" required>
+      <button type="submit">ログイン</button>
+    </form>
+
+    <h2>ユーザー登録</h2>
+    <form id="register-form">
+      <input type="text" id="register-username" placeholder="ユーザー名" required>
+      <input type="password" id="register-password" placeholder="パスワード" required>
+      <button type="submit">登録</button>
+    </form>
+  </div>
+
+  <!-- Todoセクション -->
+  <div id="todo-section" style="display: none;">
+    <form id="todo-form">
+      <input type="text" id="todo-input" placeholder="やること" required>
+      <button type="submit">追加</button>
+    </form>
+    <ul id="todo-list"></ul>
+    <button onclick="logout()">ログアウト</button>
+  </div>
+
+  <script>
+    const API_URL = "/";
+    const tokenKey = "token";
+
+    // ログイン
+    document.getElementById("login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const username = document.getElementById("login-username").value;
+      const password = document.getElementById("login-password").value;
+      const res = await fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ username, password })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem(tokenKey, data.access_token);
+        showTodoSection();
+      } else {
+        alert("ログイン失敗！");
+      }
+    });
+
+    // 登録
+    document.getElementById("register-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const username = document.getElementById("register-username").value;
+      const password = document.getElementById("register-password").value;
+      const res = await fetch("/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ username, password })
+      });
+      if (res.ok) {
+        alert("登録完了！ログインしてください。");
+      } else {
+        alert("登録失敗（既に使われているユーザー名かも）");
+      }
+    });
+
+    // Todo取得
+    async function fetchTodos() {
+      const res = await fetch("/todos", {
+        headers: { Authorization: `Bearer ${localStorage.getItem(tokenKey)}` }
+      });
+      const todos = await res.json();
+      const list = document.getElementById("todo-list");
+      list.innerHTML = "";
+
+      todos.forEach((todo, index) => {
+        const li = document.createElement("li");
+        li.textContent = todo.title + (todo.done ? " ✅" : "");
+
+        if (!todo.done) {
+          const doneBtn = document.createElement("button");
+          doneBtn.textContent = "完了";
+          doneBtn.onclick = async () => {
+            await fetch(`/todos/${index}`, {
+              method: "PUT",
+              headers: { Authorization: `Bearer ${localStorage.getItem(tokenKey)}` }
+            });
+            fetchTodos();
+          };
+          li.appendChild(doneBtn);
+        }
+
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "削除";
+        delBtn.onclick = async () => {
+          await fetch(`/todos/${index}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${localStorage.getItem(tokenKey)}` }
+          });
+          fetchTodos();
+        };
+        li.appendChild(delBtn);
+        list.appendChild(li);
+      });
+    }
+
+    // タスク追加
+    document.getElementById("todo-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const title = document.getElementById("todo-input").value;
+      await fetch("/todos", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem(tokenKey)}`
+        },
+        body: JSON.stringify({ title })
+      });
+      document.getElementById("todo-input").value = "";
+      fetchTodos();
+    });
+
+    // 表示切り替え
+    function showTodoSection() {
+      document.getElementById("auth-section").style.display = "none";
+      document.getElementById("todo-section").style.display = "block";
+      fetchTodos();
+    }
+
+    // ログアウト
+    function logout() {
+      localStorage.removeItem(tokenKey);
+      location.reload();
+    }
+
+    // 自動ログイン
+    if (localStorage.getItem(tokenKey)) {
+      showTodoSection();
+    }
+  </script>
+</body>
+</html>
